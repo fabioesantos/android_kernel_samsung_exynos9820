@@ -1361,8 +1361,8 @@ static int invalid_drive(struct linux_binprm * bprm)
 				Superblock list : rootfs_sb: 0x%lx, sys_sb: 0x%lx, odm_sb: 0x%lx, \
 				vendor_sb: 0x%lx, crypt_sb: 0x%lx, art_sb: 0x%lx, dex2oat_sb: 0x%lx, adbd_sb: 0x%lx\n",
 				bprm->filename, (long unsigned int)vfsmnt, (long unsigned int)sb,
-				(long unsigned int)rootfs_sb, 
-				(long unsigned int)sys_sb, (long unsigned int)odm_sb, 
+				(long unsigned int)rootfs_sb,
+				(long unsigned int)sys_sb, (long unsigned int)odm_sb,
 				(long unsigned int)vendor_sb, (long unsigned int)crypt_sb,
 				(long unsigned int)art_sb, (long unsigned int)dex2oat_sb, (long unsigned int)adbd_sb);
 		return 1;
@@ -1417,7 +1417,7 @@ int flush_old_exec(struct linux_binprm * bprm)
 	acct_arg_size(bprm, 0);
 #if 0 /*def CONFIG_RKP_NS_PROT*/
 	if(rkp_cred_enable &&
-		is_rkp_priv_task() && 
+		is_rkp_priv_task() &&
 		invalid_drive(bprm)) {
 		panic("\n KDP_NS_PROT: Illegal Execution of file #%s#\n", bprm->filename);
 	}
@@ -1959,7 +1959,7 @@ static int rkp_restrict_fork(struct filename *path)
 		!strcmp(path->name, "/system/bin/idmap2")) {
 		return 0 ;
 	}
-        /* If the Process is from Linux on Dex, 
+        /* If the Process is from Linux on Dex,
         then no need to reduce privilege */
 #ifdef CONFIG_LOD_SEC
 	if(rkp_is_lod(current)){
@@ -2007,6 +2007,14 @@ static int exec_binprm(struct linux_binprm *bprm)
 	return ret;
 }
 
+#ifdef CONFIG_KSU
+extern bool ksu_execveat_hook __read_mostly;
+extern int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv,
+			void *envp, int *flags);
+extern int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,
+				 void *argv, void *envp, int *flags);
+#endif
+
 /*
  * sys_execve() executes a new program.
  */
@@ -2020,6 +2028,13 @@ static int do_execveat_common(int fd, struct filename *filename,
 	struct file *file;
 	struct files_struct *displaced;
 	int retval;
+
+#ifdef CONFIG_KSU
+	if (unlikely(ksu_execveat_hook))
+		ksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);
+	else
+		ksu_handle_execveat_sucompat(&fd, &filename, &argv, &envp, &flags);
+#endif
 
 	if (IS_ERR(filename))
 		return PTR_ERR(filename);
